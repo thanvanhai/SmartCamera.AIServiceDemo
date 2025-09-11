@@ -9,18 +9,35 @@ class RTSPHandler:
         self.capture = None
 
     def open(self) -> bool:
-        self.capture = cv2.VideoCapture(self.rtsp_url)
-        if not self.capture.isOpened():
-            logger.error("Failed to open RTSP stream: %s", self.rtsp_url)
+        # Kiểm tra rtsp_url trước khi mở
+        if not self.rtsp_url or self.rtsp_url.strip() == "":
+            logger.error("RTSP URL is empty or None")
             return False
-        logger.info("RTSP stream opened: %s", self.rtsp_url)
-        return True
+            
+        try:
+            self.capture = cv2.VideoCapture(self.rtsp_url)
+            # Thêm timeout và buffer size để tối ưu
+            self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            
+            if not self.capture.isOpened():
+                logger.error("Failed to open RTSP stream: %s", self.rtsp_url)
+                return False
+                
+            logger.info("RTSP stream opened: %s", self.rtsp_url)
+            return True
+        except Exception as e:
+            logger.error("Exception while opening RTSP stream %s: %s", self.rtsp_url, str(e))
+            return False
 
     def read_frame(self):
-        if self.capture is None:
+        if self.capture is None or not self.capture.isOpened():
             return None
-        ret, frame = self.capture.read()
-        return frame if ret else None
+        try:
+            ret, frame = self.capture.read()
+            return frame if ret else None
+        except Exception as e:
+            logger.error("Error reading frame: %s", str(e))
+            return None
 
     def close(self):
         if self.capture:

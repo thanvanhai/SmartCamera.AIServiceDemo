@@ -22,11 +22,16 @@ class RabbitMQSubscriber:
     async def subscribe(
         self,
         routing_key: str,
-        callback: Callable[[dict], Awaitable[None]],
+        callback: Callable[[str, dict], Awaitable[None]],
         queue_name: str = ""
     ):
+        """
+        Subscribe vào exchange với routing_key
+        Callback: async (routing_key: str, payload: dict)
+        """
         exchange = await self._channel.declare_exchange(
-            self._exchange_name, aio_pika.ExchangeType.TOPIC
+            self._exchange_name, aio_pika.ExchangeType.TOPIC,
+               durable=True  # Đặt true cho khớp với exchange đã tồn tại
         )
         queue = await self._channel.declare_queue(queue_name, durable=True)
         await queue.bind(exchange, routing_key)
@@ -36,6 +41,7 @@ class RabbitMQSubscriber:
                 async with message.process():
                     try:
                         payload = json.loads(message.body.decode())
-                        await callback(payload)
+                        logger.info(f"📩 Received message: {payload}")  # 👈 thêm log debug
+                        await callback(message.routing_key, payload)
                     except Exception as e:
                         logger.error("Error handling message: %s", e)
