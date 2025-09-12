@@ -6,7 +6,7 @@ import sys
 from typing import Dict, Any
 import uvloop
 
-from config.settings import get_ai_worker_config
+from app.settings import settings
 from services.ai_worker.inference_engine import InferenceEngine
 from shared.monitoring.health_check import HealthChecker
 from shared.monitoring.metrics import setup_prometheus_metrics
