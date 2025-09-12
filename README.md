@@ -371,3 +371,7 @@ Bạn muốn tôi implement component nào trước trong **SmartCamera.AIServic
 3. **AI Worker** - Core inference engine
 4. **Results Processor** - Xử lý kết quả AI
 5. **Setup Scripts** - Bootstrap toàn bộ hệ thống
+
+# Vào Venv source .venv/bin/activate
+# Lệnh để chạy file này: python3 -m services.ingest.main
+# Service AI worker (nhận frame từ Kafka, chạy model AI, trả kết quả): python3 -m services.ai_worker.main
