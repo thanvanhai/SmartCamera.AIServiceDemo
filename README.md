@@ -98,9 +98,16 @@ SmartCamera.AIServiceDemo/
 │   ├── ai_worker/
 │   │   ├── __init__.py
 │   │   ├── main.py            # AI Worker entry (multiple instances)
-│   │   ├── inference_engine.py # Main inference logic
 │   │   ├── model_loader.py    # Load/manage AI models
 │   │   ├── batch_processor.py # Batch processing
+│   │   │── engine/                    # Tách inference_engine.py thành:
+│   │   │   ├── __init__.py
+│   │   │   ├── inference_engine.py    # Main orchestrator 
+|   │   │   ├── job_processor.py       # Job processing logic 
+│   │   │   ├── kafka_handler.py       # Kafka operations
+│   │   │   ├── performance_monitor.py # System monitoring 
+│   │   │   ├── metrics_collector.py   # Metrics handling
+│   │   │   └── inference_job.py       # InferenceJob dataclass 
 │   │   ├── detectors/
 │   │   │   ├── __init__.py
 │   │   │   ├── base_detector.py
