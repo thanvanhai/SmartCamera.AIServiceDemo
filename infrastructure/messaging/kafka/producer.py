@@ -62,11 +62,11 @@ class KafkaProducer:
                 bootstrap_servers=self.bootstrap_servers,
                 value_serializer=self._serialize_message,
                 key_serializer=self._serialize_key,
-                batch_size=self.batch_size,
+                # batch_size=self.batch_size,
                 linger_ms=self.linger_ms,
                 compression_type=self.compression_type,
                 acks=self.acks,
-                retries=self.retries,
+                # retries=self.retries,
                 retry_backoff_ms=self.retry_backoff_ms,
                 # Security settings (if needed)
                 security_protocol=self.config.get('security_protocol', 'PLAINTEXT'),
