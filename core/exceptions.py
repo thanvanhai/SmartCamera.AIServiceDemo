@@ -1,6 +1,6 @@
-# ================================
 # core/exceptions.py
-# ================================
+from typing import Optional
+
 class SmartCameraException(Exception):
     """Base exception for SmartCamera AI Service"""
     pass

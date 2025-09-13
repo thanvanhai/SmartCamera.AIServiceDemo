@@ -14,7 +14,7 @@ from core.models.camera_models import CameraConfig, CameraStatus
 from core.exceptions import WebAPIError, AuthenticationError
 from shared.utils.validation import validate_response
 from shared.decorators.retry import retry_on_failure
-from shared.decorators.timing import measure_time
+from shared.decorators.timing import time_execution
 from app.settings import settings
 import logging
 
@@ -132,7 +132,7 @@ class WebAPIClient:
             await self._authenticate()
             
     @retry_on_failure(max_retries=3, delay=1.0)
-    @measure_time
+    @time_execution
     async def _make_request(
         self, 
         method: str, 
