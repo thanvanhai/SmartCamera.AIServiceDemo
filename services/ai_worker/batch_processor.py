@@ -9,8 +9,7 @@ from dataclasses import dataclass
 
 from core.models import DetectionResult
 from core.enums import ModelType
-from shared.monitoring.metrics import BatchMetrics
-
+from infrastructure.monitoring.metrics import ModelMetrics
 
 @dataclass
 class BatchJob:

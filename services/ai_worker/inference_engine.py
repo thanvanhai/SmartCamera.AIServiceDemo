@@ -14,7 +14,7 @@ from infrastructure.messaging.kafka.consumer import KafkaConsumer
 from infrastructure.storage.redis.client import RedisClient
 from services.ai_worker.model_loader import ModelLoader
 from services.ai_worker.batch_processor import BatchProcessor
-from shared.monitoring.metrics import AIMetrics
+from infrastructure.monitoring.metrics import ModelMetrics
 from shared.decorators.timing import time_execution
 
 # Import một lần ở đầu file để kiểm tra sự tồn tại
@@ -51,7 +51,7 @@ class InferenceEngine:
         self.redis_client = RedisClient()  # Giữ lại Redis cho caching và metrics
         self.model_loader = ModelLoader(config)
         self.batch_processor = BatchProcessor(config)
-        self.metrics = AIMetrics(worker_id)
+        #self.metrics = AIMetrics(worker_id)
 
         # Queues
         self.job_queue = asyncio.PriorityQueue(maxsize=config.get('queue_size', 200))

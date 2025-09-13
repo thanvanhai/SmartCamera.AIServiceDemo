@@ -7,6 +7,7 @@ from enum import Enum
 
 class ModelType(str, Enum):
     """AI Model types supported by the system"""
+    YOLO = "yolo" 
     YOLO_V5 = "yolo_v5"
     YOLO_V8 = "yolo_v8"
     YOLO_V10 = "yolo_v10"

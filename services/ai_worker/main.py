@@ -8,16 +8,15 @@ import uvloop
 
 from app.settings import settings
 from services.ai_worker.inference_engine import InferenceEngine
-from shared.monitoring.health_check import HealthChecker
-from shared.monitoring.metrics import setup_prometheus_metrics
-
+from infrastructure.monitoring.health_check import HealthChecker
+from infrastructure.monitoring.metrics import ModelMetrics, setup_prometheus_metrics, update_prometheus_metrics
 
 class AIWorkerService:
     """Main AI Worker Service - Entry point cho AI Worker"""
     
     def __init__(self, worker_id: str):
         self.worker_id = worker_id
-        self.config = get_ai_worker_config()
+        self.config = settings.ai_worker # Load cấu hình từ settings
         self.logger = logging.getLogger(f"ai_worker_service_{worker_id}")
         
         # Core components

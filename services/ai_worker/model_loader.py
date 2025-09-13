@@ -5,14 +5,13 @@ import asyncio
 from typing import Dict, Optional, List
 from pathlib import Path
 
-from core.enums import ModelType
+from core.enums.model_types import ModelType
 from services.ai_worker.detectors.base_detector import BaseDetector
-from services.ai_worker.detectors.yolo_detector import YoloDetector
+from services.ai_worker.detectors.yolo_detector import YOLODetector 
 from services.ai_worker.detectors.face_detector import FaceDetector
 from services.ai_worker.detectors.person_detector import PersonDetector
 from services.ai_worker.detectors.vehicle_detector import VehicleDetector
-from shared.monitoring.metrics import ModelMetrics
-
+from infrastructure.monitoring.metrics import ModelMetrics
 
 class ModelLoader:
     """Model Loader - Quản lý loading và switching AI models"""
@@ -93,14 +92,43 @@ class ModelLoader:
     def _create_detector(self, model_type: ModelType, model_path: str, config: Dict) -> Optional[BaseDetector]:
         """Create detector instance based on model type"""
         detector_map = {
-            ModelType.YOLO_V8: YoloDetector,
-            ModelType.YOLO_V5: YoloDetector,  # Same detector, different model
-            ModelType.FACE_DETECTION: FaceDetector,
-            ModelType.PERSON_DETECTION: PersonDetector,
-            ModelType.VEHICLE_DETECTION: VehicleDetector,
+            # YOLO variants
+            ModelType.YOLO_V5: YOLODetector,
+            ModelType.YOLO_V8: YOLODetector,
+            ModelType.YOLO_V10: YOLODetector,
+            ModelType.YOLO_NAS: YOLODetector,
+            
+            # Face detection
+            ModelType.MTCNN: FaceDetector,
+            ModelType.FACE_RECOGNITION: FaceDetector,
+            
+            # Other detectors
+            ModelType.SSD: PersonDetector,  # Can be configured for person detection
+            ModelType.EFFICIENTDET: PersonDetector,
+            
+            # Custom mapping - these would need to be defined in your enum
+            # For now, map common detection tasks to appropriate detectors
         }
         
+        # Try to map model type to appropriate detector
         detector_class = detector_map.get(model_type)
+        
+        # If no direct mapping, infer from model name
+        if not detector_class:
+            model_name_lower = model_type.value.lower()
+            if 'yolo' in model_name_lower:
+                detector_class = YOLODetector
+            elif 'face' in model_name_lower or 'mtcnn' in model_name_lower:
+                detector_class = FaceDetector
+            elif 'person' in model_name_lower:
+                detector_class = PersonDetector
+            elif 'vehicle' in model_name_lower or 'car' in model_name_lower:
+                detector_class = VehicleDetector
+            else:
+                # Default to YOLO for unknown types
+                detector_class = YOLODetector
+                self.logger.warning(f"Unknown model type {model_type}, defaulting to YOLODetector")
+        
         if not detector_class:
             self.logger.error(f"Unsupported model type: {model_type}")
             return None
@@ -166,3 +194,20 @@ class ModelLoader:
         
         self.logger.info("💻 Using CPU")
         return "cpu"
+    
+    async def cleanup(self):
+        """Cleanup all loaded models"""
+        self.logger.info("🧹 Cleaning up Model Loader")
+        
+        async with self.loading_lock:
+            for model_type, detector in self.detectors.items():
+                try:
+                    await detector.unload()
+                    self.logger.info(f"✅ Unloaded {model_type.value}")
+                except Exception as e:
+                    self.logger.error(f"Failed to unload {model_type.value}: {e}")
+            
+            self.detectors.clear()
+            self.loaded_models.clear()
+        
+        self.logger.info("✅ Model Loader cleanup completed")
