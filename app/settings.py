@@ -1,6 +1,6 @@
 # app/settings.py
-from pydantic_settings import BaseSettings
-from pydantic import validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import validator, Field
 from typing import List, Optional
 from pathlib import Path
 
@@ -50,6 +50,14 @@ class AIWorkerConfig(BaseSettings):
         if v not in valid_devices:
             raise ValueError(f"Device must be one of: {valid_devices}")
         return v
+
+    # -------------------------------------------------------------------------
+    # Pydantic Settings Config
+    # -------------------------------------------------------------------------
+    model_config = SettingsConfigDict(
+        env_prefix="AI_WORKER__",   # map .env variables like AI_WORKER__AI_BATCH_SIZE
+        extra="ignore"
+    )
 
 
 # =============================================================================
@@ -175,10 +183,15 @@ class Settings(BaseSettings):
         Path(v).parent.mkdir(parents=True, exist_ok=True)
         return v
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = 'utf-8'
-        case_sensitive = False
+    # -------------------------------------------------------------------------
+    # Pydantic Settings Config
+    # -------------------------------------------------------------------------
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 # Global settings instance
