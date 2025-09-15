@@ -1,80 +1,179 @@
 # services/results/main.py
-
 import asyncio
+import json
 import logging
-import os
-from .processor import ResultsProcessor
+from typing import List, Dict, Any
+from datetime import datetime
+import argparse
+
 from infrastructure.messaging.kafka.consumer import KafkaConsumer
-# THAY ĐỔI 1: Import thêm lớp WebAPIConfig
-from infrastructure.external.webapi_client import WebAPIClient, WebAPIConfig
+from infrastructure.external.webapi_client import WebApiClient
+from core.models.result_models import AIResult, Detection
+from shared.config.logging_config import setup_logging
+from .processor import ResultProcessor
+from .alert_engine import AlertEngine
+from .enricher import ResultEnricher
+from .deduplicator import ResultDeduplicator
 
-# --- Cấu hình tập trung ---
-KAFKA_BROKER = os.getenv('KAFKA_BOOTSTRAP_SERVERS', "localhost:9092")
-RESULTS_TOPIC = "smartcamera.ai_results"
-CONSUMER_GROUP_ID = "ai_results_processor_group"
-WEBAPI_BASE_URL = os.getenv('WEBAPI_BASE_URL', "http://webapi.local")
-WEBAPI_API_KEY = os.getenv('WEBAPI_API_KEY', "YOUR_API_KEY")
-
-# Cấu hình logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+class ResultsProcessorService:
+    def __init__(self, live_mode: bool = False):
+        self.live_mode = live_mode
+        self.kafka_consumer = KafkaConsumer(['ai_results'])
+        self.webapi_client = WebApiClient()
+        
+        # Components
+        self.processor = ResultProcessor()
+        self.alert_engine = AlertEngine()
+        self.enricher = ResultEnricher()
+        self.deduplicator = ResultDeduplicator()
+        
+        # Live mode stats
+        self.processed_count = 0
+        self.last_processed_time = datetime.utcnow()
+        
+    async def start(self):
+        """Khởi động Results Processor"""
+        logger.info(f"🚀 Starting Results Processor - Live Mode: {self.live_mode}")
+        
+        # Start consuming from Kafka
+        await self.kafka_consumer.start()
+        
+        # Start processing loop
+        await self.process_results_loop()
+    
+    async def process_results_loop(self):
+        """Main processing loop"""
+        try:
+            async for message in self.kafka_consumer:
+                await self.process_single_result(message)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in processing loop: {e}")
+            # Restart after delay
+            await asyncio.sleep(5)
+            await self.process_results_loop()
+    
+    async def process_single_result(self, message):
+        """Xử lý một kết quả AI từ Kafka"""
+        try:
+            # Parse message từ Kafka
+            result_data = json.loads(message.value)
+            logger.debug(f"📨 Received result: {result_data.get('camera_id')} - {len(result_data.get('detections', []))} detections")
+            
+            # Step 1: Deduplication - loại bỏ detection trùng lặp
+            deduplicated_result = await self.deduplicator.remove_duplicates(result_data)
+            
+            # Step 2: Enrichment - bổ sung thông tin
+            enriched_result = await self.enricher.enrich_result(deduplicated_result)
+            
+            # Step 3: Alert generation - tạo cảnh báo
+            alerts = await self.alert_engine.generate_alerts(enriched_result)
+            
+            # Step 4: Process final result
+            processed_result = await self.processor.process_result(
+                enriched_result, 
+                alerts=alerts
+            )
+            
+            if self.live_mode:
+                # LIVE MODE: Gửi trực tiếp lên WebAPI
+                await self.send_live_result(processed_result)
+            else:
+                # NORMAL MODE: Lưu vào ClickHouse/MinIO trước
+                await self.save_to_storage(processed_result)
+                await self.notify_webapi(processed_result)
+            
+            # Update stats
+            self.processed_count += 1
+            self.last_processed_time = datetime.utcnow()
+            
+            if self.processed_count % 10 == 0:
+                logger.info(f"📊 Processed {self.processed_count} results")
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing result: {e}")
+    
+    async def send_live_result(self, result: Dict[str, Any]):
+        """LIVE MODE: Gửi trực tiếp lên WebAPI cho real-time display"""
+        try:
+            # Format cho WebAPI
+            live_payload = {
+                'cameraId': result['camera_id'],
+                'timestamp': result['timestamp'],
+                'detections': result['detections'],
+                'alerts': result.get('alerts', []),
+                'frameId': result.get('frame_id'),
+                'processingTime': result.get('processing_time_ms'),
+                'confidence': result.get('avg_confidence'),
+                'metadata': {
+                    'detector_version': result.get('detector_version'),
+                    'model_name': result.get('model_name'),
+                    'fps': result.get('fps')
+                }
+            }
+            
+            # Gửi lên WebAPI endpoint cho live detection
+            success = await self.webapi_client.send_live_detection(live_payload)
+            
+            if success:
+                logger.debug(f"✅ Live result sent - Camera: {result['camera_id']}")
+            else:
+                logger.warning(f"⚠️ Failed to send live result - Camera: {result['camera_id']}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error sending live result: {e}")
+    
+    async def save_to_storage(self, result: Dict[str, Any]):
+        """NORMAL MODE: Lưu vào ClickHouse + MinIO"""
+        # TODO: Implement storage logic
+        pass
+    
+    async def notify_webapi(self, result: Dict[str, Any]):
+        """NORMAL MODE: Thông báo WebAPI sau khi lưu storage"""
+        # TODO: Implement notification logic
+        pass
+    
+    async def get_stats(self) -> Dict[str, Any]:
+        """Lấy thống kê xử lý"""
+        return {
+            'processed_count': self.processed_count,
+            'last_processed_time': self.last_processed_time.isoformat(),
+            'mode': 'live' if self.live_mode else 'normal',
+            'status': 'running'
+        }
 
 async def main():
-    """
-    Hàm chính để khởi tạo và chạy service.
-    """
-    logger.info("🚀 Bắt đầu khởi tạo service xử lý kết quả AI...")
-
-    # Khởi tạo Kafka Consumer
-    consumer = KafkaConsumer(
-        bootstrap_servers=KAFKA_BROKER,
-        group_id=CONSUMER_GROUP_ID,
-        auto_offset_reset='earliest'
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description='Results Processor Service')
+    parser.add_argument(
+        '--live-mode', 
+        action='store_true',
+        help='Skip storage and send results directly to WebAPI for real-time display'
     )
-
-    # --- THAY ĐỔI 2: Sửa lại cách khởi tạo WebAPIClient ---
-
-    # 2a. Tạo đối tượng cấu hình WebAPIConfig trước
-    webapi_config = WebAPIConfig(
-        base_url=WEBAPI_BASE_URL,
-        api_key=WEBAPI_API_KEY,
-        timeout=45 # Có thể tùy chỉnh các giá trị khác nếu muốn
+    parser.add_argument(
+        '--log-level',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+        default='INFO',
+        help='Set logging level'
     )
-
-    # 2b. Truyền đối tượng config vào WebAPIClient
-    webapi_client = WebAPIClient(config=webapi_config)
     
-    # ----------------------------------------------------
+    args = parser.parse_args()
     
-    # Khởi tạo các thành phần khác
-    cameras_ws_map = {}
-
-    # Khởi tạo bộ xử lý chính (Processor)
-    processor = ResultsProcessor(
-        consumer=consumer,
-        topic_to_consume=RESULTS_TOPIC,
-        minio_client=None,
-        webapi_client=webapi_client,
-        cameras_ws_map=cameras_ws_map
-    )
-
+    # Setup logging
+    setup_logging(level=args.log_level)
+    
+    # Create and start service
+    service = ResultsProcessorService(live_mode=args.live_mode)
+    
     try:
-        logger.info(f"Bắt đầu lắng nghe và xử lý từ topic '{RESULTS_TOPIC}'...")
-        # Sử dụng WebAPIClient như một context manager để tự động kết nối và ngắt kết nối
-        async with webapi_client:
-            await processor.run()
-
+        await service.start()
+    except KeyboardInterrupt:
+        logger.info("🛑 Results Processor stopped by user")
     except Exception as e:
-        logger.error(f"Lỗi nghiêm trọng trong quá trình chạy processor: {e}", exc_info=True)
-    finally:
-        logger.info("Dọn dẹp và đóng các kết nối...")
-        await consumer.close()
-        # webapi_client.close() sẽ được tự động gọi nhờ "async with"
-
+        logger.error(f"💥 Results Processor crashed: {e}")
+        raise
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("🛑 Chương trình đã dừng bởi người dùng (Ctrl+C).")
+    asyncio.run(main())

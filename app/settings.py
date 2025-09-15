@@ -83,18 +83,18 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # External Services
     # -------------------------------------------------------------------------
-    webapi_base_url: str = "http://localhost:5000"
-    webapi_api_key: str = ""
-    webapi_timeout: int = 30
+    WEBAPI_BASE_URL: str = "https://localhost:7217/"
+    WEBAPI_API_KEY: str = ""
+    WEBAPI_TIMEOUT: int = 30
 
     # -------------------------------------------------------------------------
     # Message Brokers
     # -------------------------------------------------------------------------
     # Kafka
-    kafka_bootstrap_servers: str = "localhost:9092"
-    kafka_auto_offset_reset: str = "latest"
-    kafka_group_id: str = "smartcamera-ai"
-    kafka_max_poll_records: int = 100
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_AUTO_OFFSET_RESET: str = "latest"
+    KAFKA_GROUP_ID: str = "smartcamera-ai"
+    KAFKA_MAX_POLL_RECORDS: int = 100
 
     # Kafka Topics
     kafka_topic_raw_frames: str = "smartcamera.raw_frames"

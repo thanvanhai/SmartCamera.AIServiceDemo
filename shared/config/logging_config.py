@@ -68,6 +68,12 @@ def configure_logging(
         cache_logger_on_first_use=True,
     )
 
+# Alias for backward compatibility
+def setup_logging(level: str = "INFO", format: str = "json", **kwargs):
+    """Alias for configure_logging function with parameter mapping"""
+    # Map 'level' parameter to 'log_level' for configure_logging
+    return configure_logging(log_level=level, log_format=format, **kwargs)
+
 def _parse_size(size_str: str) -> int:
     """Parse size string like '100MB' to bytes"""
     size_str = size_str.upper()
