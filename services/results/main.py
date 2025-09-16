@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 class ResultsProcessorService:
     def __init__(self, live_mode: bool = False):
         self.live_mode = live_mode
-        self.kafka_consumer = KafkaConsumer(['ai_results'])
+        # Fix: Truyền config dict thay vì list topics
+        self.kafka_consumer = KafkaConsumer()
+        self.topics = ['ai_results']  # Topics sẽ subscribe riêng
         self.webapi_client = WebApiClient()
         
         # Components
@@ -37,8 +39,11 @@ class ResultsProcessorService:
         """Khởi động Results Processor"""
         logger.info(f"🚀 Starting Results Processor - Live Mode: {self.live_mode}")
         
-        # Start consuming from Kafka
+        # Start Kafka consumer
         await self.kafka_consumer.start()
+        
+        # Subscribe to topics
+        await self.kafka_consumer.subscribe(self.topics)
         
         # Start processing loop
         await self.process_results_loop()
@@ -46,7 +51,8 @@ class ResultsProcessorService:
     async def process_results_loop(self):
         """Main processing loop"""
         try:
-            async for message in self.kafka_consumer:
+            # Fix: Sử dụng consume() thay vì iterate trực tiếp
+            async for message in self.kafka_consumer.consume():
                 await self.process_single_result(message)
                 
         except Exception as e:
@@ -58,8 +64,8 @@ class ResultsProcessorService:
     async def process_single_result(self, message):
         """Xử lý một kết quả AI từ Kafka"""
         try:
-            # Parse message từ Kafka
-            result_data = json.loads(message.value)
+            # Parse message từ Kafka (message.value đã được deserialize)
+            result_data = message.value
             logger.debug(f"📨 Received result: {result_data.get('camera_id')} - {len(result_data.get('detections', []))} detections")
             
             # Step 1: Deduplication - loại bỏ detection trùng lặp

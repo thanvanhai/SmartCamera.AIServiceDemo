@@ -1,5 +1,6 @@
+# core/models/detection_models.py
 from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import time
 from enum import Enum
 
@@ -70,6 +71,13 @@ class DetectionResult:
     model_type: str
     worker_id: str
     confidence_threshold: float
+    
+    # THÊM CÁC FIELD THIẾU để fix lỗi constructor
+    processing_time: Optional[float] = None  # Processing time in seconds
+    frame_size: Optional[Tuple[int, int]] = None  # Frame dimensions (width, height)
+    error: Optional[str] = None  # Error message if any
+    
+    # Các field cũ giữ nguyên
     status: DetectionStatus = DetectionStatus.SUCCESS
     error_message: Optional[str] = None
     frame_width: Optional[int] = None
@@ -79,6 +87,22 @@ class DetectionResult:
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
+        
+        # Sync frame_size with frame_width/frame_height
+        if self.frame_size and not self.frame_width:
+            self.frame_width, self.frame_height = self.frame_size
+        elif self.frame_width and self.frame_height and not self.frame_size:
+            self.frame_size = (self.frame_width, self.frame_height)
+        
+        # Sync error with error_message
+        if self.error and not self.error_message:
+            self.error_message = self.error
+        elif self.error_message and not self.error:
+            self.error = self.error_message
+            
+        # Convert processing_time_ms to processing_time if not set
+        if self.processing_time is None and self.processing_time_ms is not None:
+            self.processing_time = self.processing_time_ms / 1000.0
     
     @property
     def detection_count(self) -> int:
@@ -111,13 +135,16 @@ class DetectionResult:
             'timestamp': self.timestamp,
             'detections': self.detections,
             'processing_time_ms': self.processing_time_ms,
+            'processing_time': self.processing_time,
             'model_type': self.model_type,
             'worker_id': self.worker_id,
             'confidence_threshold': self.confidence_threshold,
             'status': self.status.value if isinstance(self.status, DetectionStatus) else self.status,
             'error_message': self.error_message,
+            'error': self.error,
             'frame_width': self.frame_width,
             'frame_height': self.frame_height,
+            'frame_size': self.frame_size,
             'detection_count': self.detection_count,
             'avg_confidence': self.avg_confidence,
             'metadata': self.metadata
@@ -143,6 +170,9 @@ class DetectionResult:
             model_type=data['model_type'],
             worker_id=data['worker_id'],
             confidence_threshold=data['confidence_threshold'],
+            processing_time=data.get('processing_time'),
+            frame_size=data.get('frame_size'),
+            error=data.get('error'),
             status=status,
             error_message=data.get('error_message'),
             frame_width=data.get('frame_width'),

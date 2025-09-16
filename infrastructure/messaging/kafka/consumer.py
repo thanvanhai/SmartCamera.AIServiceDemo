@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from aiokafka import AIOKafkaConsumer
 from aiokafka.errors import KafkaError
 from datetime import datetime

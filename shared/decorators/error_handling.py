@@ -2,7 +2,7 @@
 import functools
 import logging
 import traceback
-from typing import Any, Callable, Optional, Union, Dict, List
+from typing import Any, Callable, Optional, List
 from datetime import datetime
 import asyncio
 
@@ -26,35 +26,33 @@ def handle_errors(
         custom_handler: Handler tùy chỉnh cho lỗi
     """
     def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                return _handle_exception(
-                    e, func.__name__, args, kwargs,
-                    default_return, log_errors, reraise,
-                    ignored_exceptions, custom_handler
-                )
-        
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                return _handle_exception(
-                    e, func.__name__, args, kwargs,
-                    default_return, log_errors, reraise,
-                    ignored_exceptions, custom_handler
-                )
-        
-        # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    return _handle_exception(
+                        e, func.__name__, args, kwargs,
+                        default_return, log_errors, reraise,
+                        ignored_exceptions, custom_handler
+                    )
             return async_wrapper
         else:
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    return _handle_exception(
+                        e, func.__name__, args, kwargs,
+                        default_return, log_errors, reraise,
+                        ignored_exceptions, custom_handler
+                    )
             return sync_wrapper
     
     return decorator
+
 
 def _handle_exception(
     exception: Exception,
@@ -103,19 +101,12 @@ def _handle_exception(
     
     return default_return
 
+
 # Specialized error handlers for common scenarios
 
 def handle_network_errors(default_return: Any = False, timeout: float = 30.0):
     """Decorator cho network/HTTP errors"""
     import httpx
-    
-    network_exceptions = [
-        httpx.TimeoutException,
-        httpx.ConnectError,
-        httpx.NetworkError,
-        ConnectionError,
-        TimeoutError
-    ]
     
     def custom_handler(exception, func_name, args, kwargs):
         if isinstance(exception, httpx.TimeoutException):
@@ -137,11 +128,10 @@ def handle_network_errors(default_return: Any = False, timeout: float = 30.0):
         custom_handler=custom_handler
     )
 
+
 def handle_kafka_errors(default_return: Any = None):
     """Decorator cho Kafka errors"""
     from kafka.errors import KafkaError, KafkaTimeoutError
-    
-    kafka_exceptions = [KafkaError, KafkaTimeoutError]
     
     def custom_handler(exception, func_name, args, kwargs):
         if isinstance(exception, KafkaTimeoutError):
@@ -157,6 +147,7 @@ def handle_kafka_errors(default_return: Any = None):
         reraise=False,
         custom_handler=custom_handler
     )
+
 
 def handle_ai_model_errors(default_return: Any = None):
     """Decorator cho AI model errors"""
@@ -182,6 +173,7 @@ def handle_ai_model_errors(default_return: Any = None):
         custom_handler=custom_handler
     )
 
+
 def safe_async(default_return: Any = None):
     """Simple async error handler"""
     return handle_errors(
@@ -190,6 +182,7 @@ def safe_async(default_return: Any = None):
         reraise=False
     )
 
+
 def critical_operation(reraise: bool = True):
     """Cho các operation quan trọng - log nhưng vẫn raise"""
     return handle_errors(
@@ -197,6 +190,7 @@ def critical_operation(reraise: bool = True):
         log_errors=True,
         reraise=reraise
     )
+
 
 # Context manager cho error handling
 class ErrorContext:
@@ -246,29 +240,3 @@ class ErrorContext:
         if self.exception_occurred:
             return self.default_return
         return success_value
-
-# Usage examples:
-"""
-# Basic usage
-@handle_errors(default_return=False)
-async def risky_operation():
-    # Code that might fail
-    pass
-
-# Network operations
-@handle_network_errors(default_return=None)
-async def api_call():
-    # HTTP request code
-    pass
-
-# Critical operations
-@critical_operation(reraise=True)
-def important_task():
-    # Must succeed or fail loudly
-    pass
-
-# Context manager
-with ErrorContext("database_operation", default_return=[]) as ctx:
-    data = fetch_from_database()
-    result = ctx.get_result(data)
-"""
