@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # External Services
     # -------------------------------------------------------------------------
-    WEBAPI_BASE_URL: str = "https://localhost:7217/"
+    WEBAPI_BASE_URL: str = "https://172.27.16.1:7217"
     WEBAPI_API_KEY: str = ""
     WEBAPI_TIMEOUT: int = 30
 
